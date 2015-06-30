@@ -1,4 +1,7 @@
 import Data.List
+import System.Environment
+
+operators = "(~v^=>" 
 
 data LogicalOperator = Conjunction 
                      | Disjunction 
@@ -173,7 +176,7 @@ verify :: [Statement] -> [String]-> Bool
 verify (x:y:zs) (a:bs) = if y `elem` (applyRule a x)
                        then verify (y:zs) bs
                        else False
-
+verify (x:[]) [] = True
 
 applyRule :: String -> Statement -> [Statement]
 applyRule rule a
@@ -189,34 +192,47 @@ applyRule rule a
 
 -- TODO parseLine :: String -> Statement
 
-operators = "(~v^=>" 
 
-toPostfix :: String -> [Char] -> String
+-- Translate infix to postfix: a^b to ab^
 
-toPostfix (x:xs) stack 
-    | x `elem` operators = toPostfix xs (x:stack)
-    | x == ')'           = inParens ++ toPostfix xs outParens
-    | otherwise = x:(toPostfix xs stack)
+toPostfix :: [Char] -> String -> String
+
+toPostfix stack (x:xs) 
+    | x `elem` operators = toPostfix (x:stack) xs
+    | x == ')'           = inParens ++ toPostfix outParens xs
+    | otherwise = x:(toPostfix stack xs)
     where
         inParens  = reverse $ takeWhile (/='(') stack
         outParens = tail $ dropWhile (/='(') stack
 
-toPostfix [] stack = reverse stack 
+toPostfix stack [] = reverse stack 
 
-parsePostfix :: String -> [Statement] -> Statement
+-- Translate postfix into a Statement ADT
 
-parsePostfix (x:xs) (b:a:stack)
-    | x == '^'  = parsePostfix xs $ (Compound Conjunction a b):stack
-    | x == 'v'  = parsePostfix xs $ (Compound Disjunction a b):stack
-    | x == '>'  = parsePostfix xs $ (Compound Conditional a b):stack
-    | x == '='  = parsePostfix xs $ (Compound Biconditional a b):stack
+parsePostfix :: [Statement] -> String -> Statement
 
-parsePostfix (x:xs) (a:stack)
-    | x == '~'  = parsePostfix xs $ (Negation a):stack
+parsePostfix (b:a:stack) (x:xs)
+    | x == '^'  = parsePostfix ((Compound Conjunction a b):stack) xs
+    | x == 'v'  = parsePostfix ((Compound Disjunction a b):stack) xs
+    | x == '>'  = parsePostfix ((Compound Conditional a b):stack) xs
+    | x == '='  = parsePostfix ((Compound Biconditional a b):stack) xs
 
-parsePostfix (x:xs) stack = parsePostfix xs $ (Atom x):stack
+parsePostfix (a:stack) (x:xs)
+    | x == '~'  = parsePostfix ((Negation a):stack) xs
 
-parsePostfix [] stack = head stack
+parsePostfix stack (x:xs) = parsePostfix ((Atom x):stack) xs
+
+parsePostfix stack [] = head stack
+
+
+-- main - Parse CLAs, open file, split lines, parse statements, and feed 
+--      - to verify.
 
 main = do
-         print $ parsePostfix (toPostfix "(a^b)vc" []) []
+         [f] <- getArgs
+         s <- readFile f
+         let statements     = map (takeWhile (/=';')) $ lines s
+         let parsedStates   = map (parsePostfix [] . toPostfix []) statements
+         let justifications = tail $ map (tail . dropWhile (/=';')) $ lines s
+         print $ verify parsedStates justifications
+

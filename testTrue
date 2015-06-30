@@ -1,0 +1,5 @@
+~(x^(y>z))
+~(x^((~y)vz));CE
+(~x)v(~((~y)vz));DeM
+(~x)v((~(~y))^(~z));DeM
+(~x)v(y^(~z));DNeg
