@@ -85,78 +85,78 @@ demorgan phi = phi
 -- Commutation: x v y <=> y v x
 --              x ^ y <=> y ^ x
 
-commute :: Statement -> Statement
+commutation :: Statement -> Statement
 
-commute (Compound Disjunction phi psi) = Compound Disjunction psi phi
+commutation (Compound Disjunction phi psi) = Compound Disjunction psi phi
 
-commute (Compound Conjunction phi psi) = Compound Conjunction psi phi
+commutation (Compound Conjunction phi psi) = Compound Conjunction psi phi
 
-commute phi = phi
+commutation phi = phi
 
 -- Association: x ^ (y ^ z) <=> (x ^ y) ^ z
 --              x v (y v z) <=> (x v y) ^ z
 
-associate :: Statement -> Statement
+association :: Statement -> Statement
 
-associate (Compound Disjunction phi (Compound Disjunction psi xi)) = 
+association (Compound Disjunction phi (Compound Disjunction psi xi)) = 
           (Compound Disjunction (Compound Disjunction phi psi) xi)
 
-associate (Compound Conjunction phi (Compound Conjunction psi xi)) = 
+association (Compound Conjunction phi (Compound Conjunction psi xi)) = 
           (Compound Conjunction (Compound Conjunction phi psi) xi)
 
-associate phi = phi
+association phi = phi
 
 -- Exportation: (x ^ y) -> x <=> x -> (y -> z)
 
-export :: Statement -> Statement
-export (Compound Conditional (Compound Conjunction phi psi) xi) = 
+exportation :: Statement -> Statement
+exportation (Compound Conditional (Compound Conjunction phi psi) xi) = 
        Compound Conditional phi (Compound Conditional psi xi) 
-export (Compound Conditional phi (Compound Conditional psi xi))  = 
+exportation (Compound Conditional phi (Compound Conditional psi xi))  = 
        Compound Conditional (Compound Conjunction phi psi) xi 
-export phi = phi
+exportation phi = phi
 
 -- Distribution: x ^ (y v z) = (x v y) ^ (x v z)
 --               x v (y ^ z) = (x ^ y) v (x ^ z)
 
-distribute :: Statement -> Statement
+distribution :: Statement -> Statement
 
-distribute (Compound Disjunction phi (Compound Conjunction psi xi)) = 
+distribution (Compound Disjunction phi (Compound Conjunction psi xi)) = 
            Compound Conjunction leftConjunct rightConjunct
                 where
                   leftConjunct  = Compound Disjunction phi psi
                   rightConjunct = Compound Disjunction psi phi 
 
-distribute (Compound Conjunction phi (Compound Disjunction psi xi)) = 
+distribution (Compound Conjunction phi (Compound Disjunction psi xi)) = 
            Compound Disjunction leftDisjunct rightDisjunct
                 where
                   leftDisjunct  = Compound Conjunction phi psi
                   rightDisjunct = Compound Conjunction psi phi 
 
-distribute phi = phi
+distribution phi = phi
 
 -- Contraposition: x -> y <=> !y -> !x
 
-contrapose :: Statement -> Statement
+contraposition :: Statement -> Statement
 
-contrapose (Compound Conditional phi psi) = 
+contraposition (Compound Conditional phi psi) = 
            Compound Conditional (Negation psi) (Negation phi)
 
-contrapose phi = phi
+contraposition phi = phi
 
 -- Duplication: x ^ x <=> x
 --              x v x <=> x
 
-duplicate :: Statement -> Statement
+duplication :: Statement -> Statement
 
-duplicate (Compound Conjunction phi psi) =  if phi == psi 
+duplication (Compound Conjunction phi psi) =  if phi == psi 
                                             then phi 
                                             else (Compound Conjunction phi psi)
 
-duplicate (Compound Disjunction phi psi) =  if phi == psi 
+duplication (Compound Disjunction phi psi) =  if phi == psi 
                                             then phi 
                                             else (Compound Disjunction phi psi)
 
-duplicate phi = phi
+duplication phi = phi
 
 -- print out a statement nicely
 
@@ -166,8 +166,57 @@ printNeat a  = do
                  print $ head a
                  printNeat $ tail a
 
+-- sentential proof verification: "does line n+1 follow from n?"
+
+verify :: [Statement] -> [String]-> Bool
+
+verify (x:y:zs) (a:bs) = if y `elem` (applyRule a x)
+                       then verify (y:zs) bs
+                       else False
+
+
+applyRule :: String -> Statement -> [Statement]
+applyRule rule a
+    | rule == "CE"      = rApply conditionalExchange a
+    | rule == "BE"      = rApply biconditionalExchange a
+    | rule == "Dup"     = rApply duplication a
+    | rule == "Contra"  = rApply contraposition a
+    | rule == "Dist"    = rApply duplication a
+    | rule == "Commute" = rApply commutation a
+    | rule == "Assoc"   = rApply association a
+    | rule == "DeM"     = rApply demorgan a
+    | rule == "DNeg"    = rApply doubleNegation a
+
+-- TODO parseLine :: String -> Statement
+
+operators = "(~v^=>" 
+
+toPostfix :: String -> [Char] -> String
+
+toPostfix (x:xs) stack 
+    | x `elem` operators = toPostfix xs (x:stack)
+    | x == ')'           = inParens ++ toPostfix xs outParens
+    | otherwise = x:(toPostfix xs stack)
+    where
+        inParens  = reverse $ takeWhile (/='(') stack
+        outParens = tail $ dropWhile (/='(') stack
+
+toPostfix [] stack = reverse stack 
+
+parsePostfix :: String -> [Statement] -> Statement
+
+parsePostfix (x:xs) (b:a:stack)
+    | x == '^'  = parsePostfix xs $ (Compound Conjunction a b):stack
+    | x == 'v'  = parsePostfix xs $ (Compound Disjunction a b):stack
+    | x == '>'  = parsePostfix xs $ (Compound Conditional a b):stack
+    | x == '='  = parsePostfix xs $ (Compound Biconditional a b):stack
+
+parsePostfix (x:xs) (a:stack)
+    | x == '~'  = parsePostfix xs $ (Negation a):stack
+
+parsePostfix (x:xs) stack = parsePostfix xs $ (Atom x):stack
+
+parsePostfix [] stack = head stack
+
 main = do
-         let x   = Negation (Compound Conjunction (Atom 'A')  (Atom 'A'))
-         print x
-         putStrLn "Post Exchange:"
-         printNeat $ nub (rApply duplicate x)
+         print $ parsePostfix (toPostfix "(a^b)vc" []) []
