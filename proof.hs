@@ -184,7 +184,7 @@ applyRule rule a
     | rule == "BE"      = rApply biconditionalExchange a
     | rule == "Dup"     = rApply duplication a
     | rule == "Contra"  = rApply contraposition a
-    | rule == "Dist"    = rApply duplication a
+    | rule == "Dist"    = rApply distribution a
     | rule == "Commute" = rApply commutation a
     | rule == "Assoc"   = rApply association a
     | rule == "DeM"     = rApply demorgan a
